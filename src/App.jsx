@@ -8,7 +8,7 @@ const KEY = 'torneo-padel:v1';
 const INITIAL = {
   teams: [], courts: 2, startTime: '09:00',
   matches: null, results: {}, seeds: null,
-  pool: [], rounds: null,
+  pool: [], rounds: null, roundResults: {},
 };
 
 function load() {
@@ -47,6 +47,16 @@ export default function App() {
     () => (seeds ? buildPlayoffs(seeds, results, groupSlots, state.courts) : []),
     [seeds, results, groupSlots, state.courts],
   );
+  const roundMatches = useMemo(
+    () => (state.rounds ?? []).flatMap((r, i) => r.matches.map(([a, b], k) => ({
+      id: `R${i + 1}-${a}-${b}`, stage: 'group', round: i + 1, slot: i, court: k + 1, a, b,
+    }))),
+    [state.rounds],
+  );
+  const roundStandings = useMemo(
+    () => computeStandings(teams, roundMatches, state.roundResults),
+    [teams, roundMatches, state.roundResults],
+  );
   const result = seeds ? podium(playoffs, results) : null;
   const done = groupComplete(matches ?? [], results);
 
@@ -82,7 +92,7 @@ export default function App() {
     if (state.pool.length < 2) { setDrawMsg('Captura al menos 2 jugadores.'); return; }
     if (teams.length && !confirm('El sorteo reemplazará los equipos actuales. ¿Continuar?')) return;
     const { pairs, leftover } = drawPairs(state.pool);
-    set({ teams: pairs.map(([a, b]) => mkTeam(a, b)), rounds: null });
+    set({ teams: pairs.map(([a, b]) => mkTeam(a, b)), rounds: null, roundResults: {} });
     setDrawMsg(leftover
       ? `Número impar de jugadores: ${leftover} se quedó sin pareja. Agrega otro jugador y vuelve a sortear.`
       : 'Equipos sorteados. Puedes volver a sortear.');
@@ -114,6 +124,11 @@ export default function App() {
     const top = standings.slice(0, Math.min(4, standings.length)).map((s) => s.id);
     set({ seeds: top });
     setTab('finales');
+  };
+  const setRoundResult = (id, r) => {
+    const next = { ...state.roundResults };
+    if (r) next[id] = r; else delete next[id];
+    set({ roundResults: next });
   };
   const setResult = (id, r) => {
     const next = { ...results };
@@ -210,17 +225,21 @@ export default function App() {
         {tab === 'rondas' && (
           <section>
             <h2>Rondas sugeridas</h2>
-            {!state.rounds ? <p className="note">Aún no se han generado las rondas. Hazlo desde la pestaña Equipos.</p> : state.rounds.map((r, i) => (
-              <div key={i} className="match">
-                <div className="meta">Ronda {i + 1}</div>
-                {r.matches.map(([a, b]) => (
-                  <div key={a + b} className="teams">
-                    <span>{teamLabel(a)}</span><span className="vs">vs</span><span>{teamLabel(b)}</span>
+            {!state.rounds ? <p className="note">Aún no se han generado las rondas. Hazlo desde la pestaña Equipos.</p> : (
+              <>
+                {state.rounds.map((r, i) => (
+                  <div key={i}>
+                    <h3>Ronda {i + 1}</h3>
+                    <MatchList matches={roundMatches.filter((m) => m.round === i + 1)} results={state.roundResults}
+                      teamName={teamLabel} startTime={state.startTime} onChange={setRoundResult} showRound hideTime />
+                    {r.bye && <div className="note">Descansa: {teamLabel(r.bye)}</div>}
                   </div>
                 ))}
-                {r.bye && <div className="note">Descansa: {teamLabel(r.bye)}</div>}
-              </div>
-            ))}
+                <h3>Tabla de posiciones de las rondas</h3>
+                <StandingsTable rows={roundStandings} />
+                <p className="note">3 puntos por victoria. Desempate: diferencia de sets (DS), luego de juegos (DJ).</p>
+              </>
+            )}
           </section>
         )}
 
@@ -237,18 +256,7 @@ export default function App() {
           <section>
             <h2>Tabla de posiciones</h2>
             {!started ? <p className="note">Genera el calendario primero.</p> : (
-              <div className="scroll">
-                <table>
-                  <thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>DS</th><th>DJ</th><th>Pts</th></tr></thead>
-                  <tbody>
-                    {standings.map((s, i) => (
-                      <tr key={s.id} className={i < 4 ? 'top' : ''}>
-                        <td>{i + 1}</td><td>{s.name}</td><td>{s.pj}</td><td>{s.pg}</td><td>{s.pp}</td><td>{s.ds}</td><td>{s.dg}</td><td><b>{s.pts}</b></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <StandingsTable rows={standings} highlight={4} />
             )}
             <p className="note">3 puntos por victoria. Desempate: diferencia de sets (DS), luego de juegos (DJ). Clasifican los 4 primeros.</p>
           </section>
@@ -289,13 +297,30 @@ export default function App() {
   );
 }
 
-function MatchList({ matches, results, teamName, startTime, onChange, showRound }) {
+function StandingsTable({ rows, highlight = 0 }) {
+  return (
+    <div className="scroll">
+      <table>
+        <thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>DS</th><th>DJ</th><th>Pts</th></tr></thead>
+        <tbody>
+          {rows.map((s, i) => (
+            <tr key={s.id} className={i < highlight ? 'top' : ''}>
+              <td>{i + 1}</td><td>{s.name}</td><td>{s.pj}</td><td>{s.pg}</td><td>{s.pp}</td><td>{s.ds}</td><td>{s.dg}</td><td><b>{s.pts}</b></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MatchList({ matches, results, teamName, startTime, onChange, showRound, hideTime }) {
   const slots = [...new Set(matches.map((m) => m.slot))].sort((a, b) => a - b);
   return (
     <div>
       {slots.map((slot) => (
         <div key={slot} className="slot">
-          <div className="time">{slotTime(startTime, slot)}</div>
+          {!hideTime && <div className="time">{slotTime(startTime, slot)}</div>}
           {matches.filter((m) => m.slot === slot).map((m) => (
             <MatchCard key={m.id} m={m} r={results[m.id]} teamName={teamName} onChange={onChange} showRound={showRound} />
           ))}
@@ -324,7 +349,7 @@ function MatchCard({ m, r, teamName, onChange, showRound }) {
   );
   return (
     <div className={`match ${win ? 'done' : ''}`}>
-      <div className="meta">{m.label ?? `Jornada ${m.round}`} · Cancha {m.court}</div>
+      <div className="meta">{m.label ?? `Jornada ${m.round}`} · Cancha {m.court} · {win ? 'Jugado' : 'Pendiente'}</div>
       <div className="teams">
         <span className={win === m.a ? 'win' : ''}>{teamName(m.a)}</span>
         <span className="vs">vs</span>
