@@ -20,6 +20,7 @@ function load() {
   }
 }
 
+const label = (t) => (t.players ? t.players.join(' / ') : t.name);
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 export default function App() {
@@ -36,7 +37,7 @@ export default function App() {
   }, [state]);
 
   const { teams, matches, results, seeds } = state;
-  const teamName = (id) => teams.find((t) => t.id === id)?.name ?? 'Por definir';
+  const teamName = (id) => { const t = teams.find((x) => x.id === id); return t ? label(t) : 'Por definir'; };
   const started = !!matches;
   const groupSlots = matches ? Math.max(0, ...matches.map((m) => m.slot)) + 1 : 0;
   const standings = useMemo(
@@ -102,10 +103,7 @@ export default function App() {
     set({ rounds: roundsWithBye(teams.map((t) => t.id)) });
     setTab('rondas');
   };
-  const teamLabel = (id) => {
-    const t = teams.find((x) => x.id === id);
-    return t ? (t.players ? t.players.join(' y ') : t.name) : 'Por definir';
-  };
+  const teamLabel = teamName;
 
   const generate = () => {
     if (teams.length < 3) return;
@@ -177,7 +175,7 @@ export default function App() {
                     </form>
                   ) : (
                     <>
-                      <span>{t.players ? t.players.join(' y ') : t.name}</span>
+                      <span>{label(t)}</span>
                       <span>
                         <button className="ghost" onClick={() => setEditing(t.id)}>Editar</button>
                         <button className="ghost danger" disabled={started} onClick={() => remove(t.id)}>Quitar</button>
