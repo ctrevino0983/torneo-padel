@@ -1,6 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { roundRobin, buildGroupMatches, computeStandings, buildPlayoffs, slotTime, shuffle, drawPairs, roundsWithBye } from './tournament.js';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { roundRobin, buildGroupMatches, computeStandings, buildPlayoffs, slotTime, shuffle, roundsWithBye, normalize } = require('./app.js');
 
 for (const n of [2, 3, 4, 5, 6, 7, 8]) {
   test(`round robin con ${n} equipos`, () => {
@@ -46,18 +46,18 @@ test('shuffle conserva los elementos y no muta', () => {
   assert.deepEqual([...out].sort(), src);
 });
 
-test('drawPairs forma parejas y reporta sobrante si es impar', () => {
-  const even = drawPairs(['a', 'b', 'c', 'd']);
-  assert.equal(even.pairs.length, 2);
-  assert.equal(even.leftover, null);
-  const odd = drawPairs(['a', 'b', 'c', 'd', 'e']);
-  assert.equal(odd.pairs.length, 2);
-  assert.ok(odd.leftover);
-});
-
 test('roundsWithBye: descanso con equipos impares', () => {
   const rounds = roundsWithBye(['a', 'b', 'c']);
   assert.equal(rounds.length, 3);
   assert.deepEqual(rounds.map((r) => r.bye).sort(), ['a', 'b', 'c']);
   assert.ok(roundsWithBye(['a', 'b', 'c', 'd']).every((r) => r.bye === null));
+});
+
+test('normalize migra datos antiguos (descarta pool) y tolera datos inválidos', () => {
+  const s = normalize({ teams: [{ id: 'a', name: 'A / B' }], pool: ['x'], courts: 3 });
+  assert.equal(s.pool, undefined);
+  assert.equal(s.courts, 3);
+  assert.equal(s.startTime, '09:00');
+  assert.deepEqual(s.roundResults, {});
+  assert.deepEqual(normalize(null).teams, []);
 });

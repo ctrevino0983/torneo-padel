@@ -1,6 +1,6 @@
 :root { --g: #0f766e; --bg: #f1f5f9; --bd: #cbd5e1; font-family: system-ui, sans-serif; color: #0f172a; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); }
+body { margin: 0; background: var(--bg); padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 .app { max-width: 960px; margin: 0 auto; padding: 0 12px 40px; }
 header { padding: 12px 0; }
 h1 { margin: 0 0 8px; font-size: 1.5rem; }

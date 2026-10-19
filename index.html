@@ -7,10 +7,17 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Torneo de Pádel</title>
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <noscript>Esta aplicación requiere JavaScript.</noscript>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div class="app">
+      <header>
+        <h1>🎾 Torneo de Pádel</h1>
+        <nav id="tabs"></nav>
+      </header>
+      <main id="main"></main>
+    </div>
+    <script src="app.js"></script>
   </body>
 </html>
