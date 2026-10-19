@@ -17,6 +17,12 @@ npm test         # pruebas de la lógica
 npm run build    # build de producción en dist/
 ```
 
+## Uso desde el celular
+- Abre la URL de GitHub Pages (ver abajo) en el navegador del celular, o
+- en la misma red WiFi ejecuta `npm run dev -- --host` y abre en el celular la URL `Network` que muestra Vite.
+
+Las rondas se generan con los equipos registrados (botón "Generar rondas"; "Volver a generar" mezcla el orden para variar los emparejamientos).
+
 ## Despliegue en GitHub Pages
 1. En el repositorio: **Settings → Pages → Source: GitHub Actions**.
 2. Haz push a `main`; el workflow `.github/workflows/deploy.yml` ejecuta pruebas, build y publica.

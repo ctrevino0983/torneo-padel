@@ -40,3 +40,21 @@ tr.top { background: #ccfbf1; }
 .podium { background: #fef3c7; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
 .bracket { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 800px) { .bracket { grid-template-columns: 1fr; } }
+html { -webkit-tap-highlight-color: transparent; }
+button, input { touch-action: manipulation; }
+@media (max-width: 600px) {
+  .app { padding: 0 8px 32px; }
+  section { padding: 12px; }
+  input, button { min-height: 44px; font-size: 16px; }
+  nav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  nav button { flex: 0 0 auto; white-space: nowrap; }
+  .row { flex-direction: column; align-items: stretch; }
+  .row > button, .row > input, .row > label { width: 100%; }
+  .slot { flex-direction: column; gap: 4px; }
+  .time { padding-top: 0; }
+  .match { min-width: 0; width: 100%; }
+  .score input { width: 64px; min-height: 44px; }
+  .scroll { overflow-x: auto; }
+  table { font-size: .8rem; }
+  th, td { padding: 6px 4px; }
+}
