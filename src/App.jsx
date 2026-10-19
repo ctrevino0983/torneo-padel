@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  buildGroupMatches, buildPlayoffs, computeStandings, groupComplete,
+  buildGroupMatches, buildPlayoffs, computeStandings, drawPairs, groupComplete, roundsWithBye,
   isValidResult, podium, slotTime, winnerOf,
 } from './logic/tournament.js';
 
@@ -8,6 +8,7 @@ const KEY = 'torneo-padel:v1';
 const INITIAL = {
   teams: [], courts: 2, startTime: '09:00',
   matches: null, results: {}, seeds: null,
+  pool: [], rounds: null,
 };
 
 function load() {
@@ -23,7 +24,10 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 
 export default function App() {
   const [state, setState] = useState(load);
-  const [name, setName] = useState('');
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
+  const [poolName, setPoolName] = useState('');
+  const [drawMsg, setDrawMsg] = useState('');
   const [editing, setEditing] = useState(null);
   const [tab, setTab] = useState('equipos');
 
@@ -48,23 +52,50 @@ export default function App() {
 
   const set = (patch) => setState((s) => ({ ...s, ...patch }));
 
+  const mkTeam = (a, b, id = uid()) => ({ id, name: `${a} / ${b}`, players: [a, b] });
   const addTeam = (e) => {
     e.preventDefault();
-    const n = name.trim();
-    if (!n || started) return;
-    if (teams.some((t) => t.name.toLowerCase() === n.toLowerCase())) {
-      alert('Ya existe un equipo con ese nombre.');
-      return;
-    }
-    set({ teams: [...teams, { id: uid(), name: n }] });
-    setName('');
+    const a = p1.trim(), b = p2.trim();
+    if (!a || !b) { alert('Los nombres de ambos jugadores son obligatorios.'); return; }
+    if (started) return;
+    set({ teams: [...teams, mkTeam(a, b)], rounds: null });
+    setP1(''); setP2('');
   };
-  const rename = (id, n) => {
-    n = n.trim();
-    if (n) set({ teams: teams.map((t) => (t.id === id ? { ...t, name: n } : t)) });
+  const rename = (id, a, b) => {
+    a = a.trim(); b = b.trim();
+    if (!a || !b) { alert('Los nombres de ambos jugadores son obligatorios.'); return; }
+    set({ teams: teams.map((t) => (t.id === id ? mkTeam(a, b, id) : t)), rounds: null });
     setEditing(null);
   };
-  const remove = (id) => !started && set({ teams: teams.filter((t) => t.id !== id) });
+  const remove = (id) => !started && set({ teams: teams.filter((t) => t.id !== id), rounds: null });
+
+  const addPlayer = (e) => {
+    e.preventDefault();
+    const n = poolName.trim();
+    if (!n) return;
+    set({ pool: [...state.pool, n] });
+    setPoolName(''); setDrawMsg('');
+  };
+  const removePlayer = (i) => set({ pool: state.pool.filter((_, k) => k !== i) });
+  const draw = () => {
+    if (started) return;
+    if (state.pool.length < 2) { setDrawMsg('Captura al menos 2 jugadores.'); return; }
+    if (teams.length && !confirm('El sorteo reemplazará los equipos actuales. ¿Continuar?')) return;
+    const { pairs, leftover } = drawPairs(state.pool);
+    set({ teams: pairs.map(([a, b]) => mkTeam(a, b)), rounds: null });
+    setDrawMsg(leftover
+      ? `Número impar de jugadores: ${leftover} se quedó sin pareja. Agrega otro jugador y vuelve a sortear.`
+      : 'Equipos sorteados. Puedes volver a sortear.');
+  };
+  const genRounds = () => {
+    if (teams.length < 2) return;
+    set({ rounds: roundsWithBye(teams.map((t) => t.id)) });
+    setTab('rondas');
+  };
+  const teamLabel = (id) => {
+    const t = teams.find((x) => x.id === id);
+    return t ? (t.players ? t.players.join(' y ') : t.name) : 'Por definir';
+  };
 
   const generate = () => {
     if (teams.length < 3) return;
@@ -97,7 +128,7 @@ export default function App() {
     set({ results: Object.fromEntries(Object.entries(next).filter(([k]) => k.startsWith('G'))), seeds: null });
   };
 
-  const tabs = [['equipos', 'Equipos'], ['calendario', 'Calendario'], ['posiciones', 'Posiciones'], ['finales', 'Finales']];
+  const tabs = [['equipos', 'Equipos'], ['calendario', 'Calendario'], ['posiciones', 'Posiciones'], ['finales', 'Finales'], ['rondas', 'Rondas']];
 
   return (
     <div className="app">
@@ -114,22 +145,24 @@ export default function App() {
           <section>
             <h2>Equipos ({teams.length})</h2>
             <form className="row" onSubmit={addTeam}>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del equipo" disabled={started} aria-label="Nombre del equipo" />
-              <button disabled={started || !name.trim()}>Agregar</button>
+              <input value={p1} onChange={(e) => setP1(e.target.value)} placeholder="Jugador 1" disabled={started} aria-label="Jugador 1" required />
+              <input value={p2} onChange={(e) => setP2(e.target.value)} placeholder="Jugador 2" disabled={started} aria-label="Jugador 2" required />
+              <button disabled={started}>Agregar equipo</button>
             </form>
-            {started && <p className="note">El calendario ya fue generado. Solo puedes renombrar equipos; reinicia para agregar o quitar.</p>}
+            {started && <p className="note">El calendario ya fue generado. Solo puedes editar equipos; reinicia para agregar o quitar.</p>}
             <ul className="list">
               {teams.map((t) => (
                 <li key={t.id}>
                   {editing === t.id ? (
-                    <form className="row" onSubmit={(e) => { e.preventDefault(); rename(t.id, e.target.elements.n.value); }}>
-                      <input name="n" defaultValue={t.name} autoFocus />
+                    <form className="row" onSubmit={(e) => { e.preventDefault(); rename(t.id, e.target.elements.a.value, e.target.elements.b.value); }}>
+                      <input name="a" defaultValue={t.players?.[0] ?? t.name} aria-label="Jugador 1" required autoFocus />
+                      <input name="b" defaultValue={t.players?.[1] ?? ''} aria-label="Jugador 2" required />
                       <button>Guardar</button>
                       <button type="button" className="ghost" onClick={() => setEditing(null)}>Cancelar</button>
                     </form>
                   ) : (
                     <>
-                      <span>{t.name}</span>
+                      <span>{t.players ? t.players.join(' y ') : t.name}</span>
                       <span>
                         <button className="ghost" onClick={() => setEditing(t.id)}>Editar</button>
                         <button className="ghost danger" disabled={started} onClick={() => remove(t.id)}>Quitar</button>
@@ -139,6 +172,20 @@ export default function App() {
                 </li>
               ))}
             </ul>
+            <h3>Sorteo de equipos</h3>
+            <form className="row" onSubmit={addPlayer}>
+              <input value={poolName} onChange={(e) => setPoolName(e.target.value)} placeholder="Nombre del jugador" aria-label="Nombre del jugador" />
+              <button disabled={!poolName.trim()}>Agregar jugador</button>
+            </form>
+            <ul className="list">
+              {state.pool.map((n, i) => (
+                <li key={i}><span>{n}</span><button className="ghost danger" onClick={() => removePlayer(i)}>Quitar</button></li>
+              ))}
+            </ul>
+            <div className="row">
+              <button onClick={draw} disabled={started || state.pool.length < 2}>Sortear equipos</button>
+            </div>
+            {drawMsg && <p className="note">{drawMsg}</p>}
             <h3>Configuración</h3>
             <div className="row">
               <label>Canchas
@@ -151,11 +198,29 @@ export default function App() {
             </div>
             <p className="note">Cada partido dura 30 minutos. Con número impar de equipos habrá descansos.</p>
             <div className="row">
+              <button onClick={genRounds} disabled={teams.length < 2}>Generar rondas</button>
               <button onClick={generate} disabled={teams.length < 3 || started}>Generar calendario Round Robin</button>
               {started && <button className="ghost" onClick={() => reset(false)}>Reiniciar calendario</button>}
               <button className="ghost danger" onClick={() => reset(true)}>Borrar torneo</button>
             </div>
             {teams.length < 3 && <p className="note">Agrega al menos 3 equipos.</p>}
+          </section>
+        )}
+
+        {tab === 'rondas' && (
+          <section>
+            <h2>Rondas sugeridas</h2>
+            {!state.rounds ? <p className="note">Aún no se han generado las rondas. Hazlo desde la pestaña Equipos.</p> : state.rounds.map((r, i) => (
+              <div key={i} className="match">
+                <div className="meta">Ronda {i + 1}</div>
+                {r.matches.map(([a, b]) => (
+                  <div key={a + b} className="teams">
+                    <span>{teamLabel(a)}</span><span className="vs">vs</span><span>{teamLabel(b)}</span>
+                  </div>
+                ))}
+                {r.bye && <div className="note">Descansa: {teamLabel(r.bye)}</div>}
+              </div>
+            ))}
           </section>
         )}
 

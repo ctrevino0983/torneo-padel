@@ -23,6 +23,32 @@ export function roundRobin(teamIds) {
   return rounds;
 }
 
+// Rondas Round Robin con el equipo en descanso (bye) de cada ronda, si lo hay.
+export function roundsWithBye(teamIds) {
+  return roundRobin(teamIds).map((pairs) => {
+    const played = new Set(pairs.flat());
+    return { matches: pairs, bye: teamIds.find((id) => !played.has(id)) ?? null };
+  });
+}
+
+// Mezcla Fisher-Yates (no modifica el arreglo original).
+export function shuffle(list, rng = Math.random) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Sorteo de parejas. Si el número es impar, el último jugador queda sin pareja.
+export function drawPairs(players, rng = Math.random) {
+  const mixed = shuffle(players, rng);
+  const pairs = [];
+  for (let i = 0; i + 1 < mixed.length; i += 2) pairs.push([mixed[i], mixed[i + 1]]);
+  return { pairs, leftover: mixed.length % 2 ? mixed[mixed.length - 1] : null };
+}
+
 // Asigna franjas de 30 min y canchas. Una jornada nunca repite equipo, y las
 // franjas son consecutivas, por lo que ningún equipo juega dos partidos a la vez.
 export function buildGroupMatches(teamIds, courts) {
